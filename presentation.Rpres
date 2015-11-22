@@ -1,0 +1,97 @@
+Predictive Capability of Text Mining in Yelp Reviews
+========================================================
+author: Giuliano Sposito
+date: November, 2015
+
+This is the presentation for the Capstone Project of the Coursera Data Science Specialization by Johns Hopkins Bloomberg School of Public Health.
+
+
+Introduction
+========================================================
+
+In this study we will study the ability of the texts, in the Yelp's Reviews dataset ([Yelp Challenge, 2015](http://www.yelp.com/dataset_challenge)), to be used to predict things business characteristics and attributes.
+
+For this analysis we use the [RTextTools](https://cran.r-project.org/web/packages/RTextTools/index.html) package that provides text-mining infrastructure for machine learning analysis, also used the [Caret](https://cran.r-project.org/web/packages/caret/index.html) package to sample and split the dataset and analyses the accuracy.
+
+![Text Mining Training Workflow](./images/RTextTools_Workflow.jpg)
+
+
+Algorithms Performance
+========================================================
+
+```{r plotAccuracy, echo=FALSE, warning=FALSE, message=FALSE, fig.align='center'}
+# loading the result dataset
+load("./result/summary.rdata")
+
+# subset the results to take only the accuracy study
+data <- fitSummary[fitSummary$cycle.name=="algorithm.selection" & 
+                     fitSummary$term.size < 15000,]
+
+# plot accuracy by term.size grouped by algorithm
+library(ggplot2)
+g <- ggplot(data=data, aes(x=term.size, y=accuracy, group=algorithm, colour=algorithm)) 
+g <- g + geom_smooth(method="auto",se=F) + geom_point(aes(shape=algorithm), size=2) + theme_bw(base_size=10)
+g <- g + ggtitle(paste("Accuracy - Emotional Analysis")) + xlab("term.size (# of words)")
+g
+```
+
+***
+
+```{r plotEffort, echo=FALSE, warning=FALSE, message=FALSE, fig.align='center'}
+
+# Subset the results to take only the performance study
+data <- fitSummary[fitSummary$cycle.name=="algorithm.selection" & 
+                     fitSummary$term.size < 15000,]
+
+# sum the total time for analysis
+data$total.time <- data$time.tdm + data$time.train + data$time.pred
+
+# in KNN algorithm Train and Prediction are done at same step
+data[data$algorithm=="KNN",]$total.time <- data[data$algorithm=="KNN",]$total.time -
+  data[data$algorithm=="KNN",]$time.pred
+
+# plots the total time by term size
+q <- ggplot(data=data, aes(x=term.size, y=total.time, group=algorithm, colour=algorithm)) 
+q <- q + geom_smooth(method="auto",se=F) + geom_point(aes(shape=algorithm), size=2) + theme_bw(base_size=10) + theme(legend.position="right")
+q <- q + ggtitle(paste("Total Execution Time - Emotional Analysis")) + ylab("total.time (s)") +  xlab("term.size (# of words)")
+q
+```
+
+Results (Accuracy > 0.7)
+========================================================
+
+```{r resultTable, echo=FALSE, message=FALSE, warning=FALSE}
+
+# selecting only data from attributes study
+columns <- c("feature.name","classification.levels","business.category",
+             "algorithm","accuracy")
+
+data <-  fitSummary[fitSummary$cycle.name=="attribute.analysis.400kdataset" & 
+                      fitSummary$term.size > 20000,columns]
+
+# reshaping the dataframe to put Accuracy of SVM and MAXENT side by side
+library(reshape2)
+d <- melt(data, id=columns[1:4])
+f <- paste(paste(columns[1:3],collapse="+"),columns[4],sep="~")
+d <- dcast(d, as.formula(f) , mean)
+d <- d[d$MAXENT>0.69,]
+
+# sorting
+library(dplyr)
+data <- dplyr::arrange(d, desc(MAXENT), desc(SVM))
+
+# generating a table
+options(digits=4)
+
+names(data) <- c("Attribute", "Classes", "Business Category", "SVM","MAXENT")
+
+knitr::kable(data,row.names=T)
+```
+
+Discussion
+========================================================
+
+1. The text `Review` in Yelp database has a good signal (or information enough) to prediction *the emotion of a review* (see results #1 and #2 of reviewEmotion attribute) with accuracy from 0.86 to 0.88, independently of business category.
+1. Users also seems to comment in the reviews information about the smoking status (result #3) and the business Price Range (results #4 and #5) because the models can predict the information with more than 0.75 of accuracy.
+1. Surprisingly the information about `goodForKids` in `Restaurants` (study # 6) is present in the review texts, while information about Parking and Wi-Fi (didn't appears in the results because has accuracy less than 0.7) aren't in the text reviews.
+
